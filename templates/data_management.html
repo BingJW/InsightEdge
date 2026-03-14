@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}数据管理 - 商业情报分析系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .data-table-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        transition: transform 0.2s;
+    }
+    .data-table-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    .table-icon {
+        font-size: 36px;
+        margin-bottom: 10px;
+    }
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-database"></i> 数据管理</h2>
+            <button class="btn btn-primary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise"></i> 刷新数据
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 数据表概览 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">数据表概览</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="dataTablesOverview">
+                    <div class="col-12 text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 数据表详情 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">数据表详情</h5>
+                <div>
+                    <select class="form-select form-select-sm d-inline-block" style="width: auto;" id="tableSelect" onchange="loadTableData()">
+                        <option value="">请选择数据表</option>
+                    </select>
+                    <select class="form-select form-select-sm d-inline-block ms-2" style="width: auto;" id="sheetSelect" onchange="loadTableData()" style="display: none;">
+                        <option value="">请选择工作表</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索数据..." onkeyup="handleSearch()">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="dataTable">
+                        <thead id="tableHead">
+                            <tr>
+                                <td colspan="100" class="text-center text-muted">请选择数据表查看详情</td>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr>
+                                <td colspan="100" class="text-center text-muted">请选择数据表查看详情</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3" id="paginationInfo" style="display: none !important;">
+                    <div>
+                        <span id="paginationText"></span>
+                    </div>
+                    <nav>
+                        <ul class="pagination mb-0" id="pagination">
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentTable = '';
+let currentSheet = '';
+let currentPage = 1;
+let searchTimeout = null;
+
+const tableNames = {
+    'market_cap': '市值与财务表现指标数据',
+    'media_exposure': '媒体曝光度指标数据',
+    'social_media': '社交媒体互动指标数据',
+    'investor_relations': '投资者关系指标数据',
+    'risk_reputation': '风险与声誉管控指标数据'
+};
+
+async function loadDataOverview() {
+    try {
+        const response = await fetch('/api/data_overview');
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            const container = document.getElementById('dataTablesOverview');
+            container.innerHTML = '';
+            
+            data.data.forEach(item => {
+                const tableKey = Object.keys(tableNames).find(key => 
+                    item.table_name.includes(key) || tableNames[key].includes(item.table_name)
+                ) || item.table_name;
+                
+                const col = document.createElement('div');
+                col.className = 'col-md-4 mb-3';
+                col.innerHTML = `
+                    <div class="data-table-card text-center">
+                        <div class="table-icon text-primary">
+                            <i class="bi bi-table"></i>
+                        </div>
+                        <h6>${tableNames[tableKey] || item.table_name}</h6>
+                        <p class="text-muted mb-2">
+                            <small>${item.rows} 行 × ${item.columns} 列</small>
+                        </p>
+                        <p class="text-muted mb-0">
+                            <small>缺失值: ${item.missing_values} | 重复行: ${item.duplicate_rows}</small>
+                        </p>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="selectTable('${tableKey}')">
+                            查看详情
+                        </button>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+            
+            // 更新下拉选择框
+            const select = document.getElementById('tableSelect');
+            select.innerHTML = '<option value="">请选择数据表</option>';
+            data.data.forEach(item => {
+                const tableKey = Object.keys(tableNames).find(key => 
+                    item.table_name.includes(key) || tableNames[key].includes(item.table_name)
+                ) || item.table_name;
+                const option = document.createElement('option');
+                option.value = tableKey;
+                option.textContent = tableNames[tableKey] || item.table_name;
+                select.appendChild(option);
+            });
+        } else {
+            document.getElementById('dataTablesOverview').innerHTML = 
+                '<div class="alert alert-warning">无法加载数据概览</div>';
+        }
+    } catch (error) {
+        console.error('加载数据概览失败:', error);
+        document.getElementById('dataTablesOverview').innerHTML = 
+            '<div class="alert alert-danger">加载数据概览失败: ' + error.message + '</div>';
+    }
+}
+
+async function loadTableSheets(tableName) {
+    try {
+        const response = await fetch(`/api/data_table/${tableName}/sheets`);
+        const data = await response.json();
+        
+        if (data.success && data.data.sheets && data.data.sheets.length > 0) {
+            const sheetSelect = document.getElementById('sheetSelect');
+            sheetSelect.innerHTML = '<option value="">主工作表</option>';
+            data.data.sheets.forEach(sheet => {
+                const option = document.createElement('option');
+                option.value = sheet.name;
+                option.textContent = `${sheet.name} (${sheet.rows}行)`;
+                sheetSelect.appendChild(option);
+            });
+            sheetSelect.style.display = 'inline-block';
+        } else {
+            document.getElementById('sheetSelect').style.display = 'none';
+        }
+    } catch (error) {
+        console.error('加载工作表列表失败:', error);
+        document.getElementById('sheetSelect').style.display = 'none';
+    }
+}
+
+async function loadTableData() {
+    const tableSelect = document.getElementById('tableSelect');
+    const sheetSelect = document.getElementById('sheetSelect');
+    const tableName = tableSelect.value;
+    const sheetName = sheetSelect.value || null;
+    
+    if (!tableName) {
+        document.getElementById('tableHead').innerHTML = 
+            '<tr><td colspan="100" class="text-center text-muted">请选择数据表查看详情</td></tr>';
+        document.getElementById('tableBody').innerHTML = 
+            '<tr><td colspan="100" class="text-center text-muted">请选择数据表查看详情</td></tr>';
+        document.getElementById('paginationInfo').style.display = 'none';
+        return;
+    }
+    
+    currentTable = tableName;
+    currentSheet = sheetName;
+    currentPage = 1;
+    
+    // 加载工作表列表
+    await loadTableSheets(tableName);
+    
+    // 加载数据
+    await fetchTableData(tableName, sheetName, currentPage);
+}
+
+function selectTable(tableName) {
+    document.getElementById('tableSelect').value = tableName;
+    loadTableData();
+}
+
+async function fetchTableData(tableName, sheetName, page) {
+    try {
+        const search = document.getElementById('searchInput').value;
+        let url = `/api/data_table/${tableName}?page=${page}&per_page=50`;
+        if (sheetName) {
+            url += `&sheet=${encodeURIComponent(sheetName)}`;
+        }
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            const tableData = data.data;
+            
+            // 更新表头
+            const thead = document.getElementById('tableHead');
+            thead.innerHTML = '<tr>' + tableData.columns.map(col => 
+                `<th>${col}</th>`
+            ).join('') + '</tr>';
+            
+            // 更新表体
+            const tbody = document.getElementById('tableBody');
+            if (tableData.rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="' + tableData.columns.length + '" class="text-center text-muted">暂无数据</td></tr>';
+            } else {
+                tbody.innerHTML = tableData.rows.map(row => 
+                    '<tr>' + tableData.columns.map(col => 
+                        `<td>${row[col] !== null && row[col] !== undefined ? row[col] : '-'}</td>`
+                    ).join('') + '</tr>'
+                ).join('');
+            }
+            
+            // 更新分页信息
+            if (tableData.total_pages > 1) {
+                document.getElementById('paginationInfo').style.display = 'flex';
+                document.getElementById('paginationText').textContent = 
+                    `第 ${tableData.page} 页，共 ${tableData.total_pages} 页，总计 ${tableData.total_rows} 条记录`;
+                
+                const pagination = document.getElementById('pagination');
+                pagination.innerHTML = '';
+                
+                // 上一页
+                const prevLi = document.createElement('li');
+                prevLi.className = `page-item ${tableData.page === 1 ? 'disabled' : ''}`;
+                prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${tableData.page - 1}); return false;">上一页</a>`;
+                pagination.appendChild(prevLi);
+                
+                // 页码
+                for (let i = 1; i <= tableData.total_pages; i++) {
+                    if (i === 1 || i === tableData.total_pages || 
+                        (i >= tableData.page - 2 && i <= tableData.page + 2)) {
+                        const li = document.createElement('li');
+                        li.className = `page-item ${i === tableData.page ? 'active' : ''}`;
+                        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>`;
+                        pagination.appendChild(li);
+                    } else if (i === tableData.page - 3 || i === tableData.page + 3) {
+                        const li = document.createElement('li');
+                        li.className = 'page-item disabled';
+                        li.innerHTML = '<span class="page-link">...</span>';
+                        pagination.appendChild(li);
+                    }
+                }
+                
+                // 下一页
+                const nextLi = document.createElement('li');
+                nextLi.className = `page-item ${tableData.page === tableData.total_pages ? 'disabled' : ''}`;
+                nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${tableData.page + 1}); return false;">下一页</a>`;
+                pagination.appendChild(nextLi);
+            } else {
+                document.getElementById('paginationInfo').style.display = 'none';
+            }
+        } else {
+            document.getElementById('tableBody').innerHTML = 
+                '<tr><td colspan="100" class="text-center text-danger">加载失败: ' + (data.error || '未知错误') + '</td></tr>';
+        }
+    } catch (error) {
+        console.error('加载数据表失败:', error);
+        document.getElementById('tableBody').innerHTML = 
+            '<tr><td colspan="100" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
+    }
+}
+
+function changePage(page) {
+    currentPage = page;
+    fetchTableData(currentTable, currentSheet, currentPage);
+}
+
+function handleSearch() {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+    
+    searchTimeout = setTimeout(() => {
+        currentPage = 1;
+        if (currentTable) {
+            fetchTableData(currentTable, currentSheet, currentPage);
+        }
+    }, 500);
+}
+
+async function refreshData() {
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>刷新中...';
+    
+    try {
+        const response = await fetch('/api/refresh_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('数据刷新成功！');
+            loadDataOverview();
+            if (currentTable) {
+                loadTableData();
+            }
+        } else {
+            alert('数据刷新失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('数据刷新失败: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDataOverview();
+});
+</script>
+{% endblock %}

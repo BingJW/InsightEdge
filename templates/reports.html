@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}报告中心 - 商业情报分析系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        transition: transform 0.2s;
+    }
+    .report-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    .report-icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-file-earmark-text"></i> 报告中心</h2>
+            <div>
+                <button class="btn btn-primary" onclick="showGenerateModal()">
+                    <i class="bi bi-plus-circle"></i> 生成新报告
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="report-card text-center">
+            <div class="report-icon text-primary">
+                <i class="bi bi-calendar-day"></i>
+            </div>
+            <h5>日报</h5>
+            <p class="text-muted">每日关键指标快报</p>
+            <button class="btn btn-sm btn-outline-primary" onclick="generateReport('daily')">
+                生成日报
+            </button>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="report-card text-center">
+            <div class="report-icon text-success">
+                <i class="bi bi-calendar-week"></i>
+            </div>
+            <h5>周报</h5>
+            <p class="text-muted">每周综合分析报告</p>
+            <button class="btn btn-sm btn-outline-success" onclick="generateReport('weekly')">
+                生成周报
+            </button>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="report-card text-center">
+            <div class="report-icon text-info">
+                <i class="bi bi-calendar3"></i>
+            </div>
+            <h5>季报</h5>
+            <p class="text-muted">季度全面绩效报告</p>
+            <button class="btn btn-sm btn-outline-info" onclick="generateReport('quarterly')">
+                生成季报
+            </button>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="report-card text-center">
+            <div class="report-icon text-warning">
+                <i class="bi bi-calendar-year"></i>
+            </div>
+            <h5>年报</h5>
+            <p class="text-muted">年度总结报告</p>
+            <button class="btn btn-sm btn-outline-warning" onclick="generateReport('yearly')">
+                生成年报
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">报告列表</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="reportsTable">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>类型</th>
+                                <th>大小</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="5" class="text-center">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 生成报告模态框 -->
+<div class="modal fade" id="generateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">生成报告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">报告类型</label>
+                    <select class="form-select" id="reportType">
+                        <option value="daily">日报</option>
+                        <option value="weekly">周报</option>
+                        <option value="quarterly" selected>季报</option>
+                        <option value="yearly">年报</option>
+                    </select>
+                </div>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 报告生成可能需要几分钟时间，请耐心等待。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmGenerateReport()">
+                    <i class="bi bi-file-earmark-pdf"></i> 生成报告
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadReports() {
+    try {
+        const response = await fetch('/api/reports');
+        const data = await response.json();
+        
+        if (data.success) {
+            const tbody = document.querySelector('#reportsTable tbody');
+            tbody.innerHTML = '';
+            
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无报告</td></tr>';
+                return;
+            }
+            
+            data.data.forEach(report => {
+                const row = document.createElement('tr');
+                const typeBadge = report.type === 'pdf' ? 
+                    '<span class="badge bg-danger">PDF</span>' : 
+                    '<span class="badge bg-success">Excel</span>';
+                const sizeMB = (report.size / 1024 / 1024).toFixed(2);
+                const createdDate = new Date(report.created).toLocaleString('zh-CN');
+                
+                row.innerHTML = `
+                    <td>${report.filename}</td>
+                    <td>${typeBadge}</td>
+                    <td>${sizeMB} MB</td>
+                    <td>${createdDate}</td>
+                    <td>
+                        <a href="/api/reports/${report.filename}" class="btn btn-sm btn-primary" download>
+                            <i class="bi bi-download"></i> 下载
+                        </a>
+                        <button class="btn btn-sm btn-danger ms-2" onclick="deleteReport('${report.filename}')">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (error) {
+        console.error('加载报告列表失败:', error);
+    }
+}
+
+function showGenerateModal() {
+    const modal = new bootstrap.Modal(document.getElementById('generateModal'));
+    modal.show();
+}
+
+async function generateReport(type) {
+    if (!confirm(`确定要生成${getReportTypeName(type)}吗？`)) {
+        return;
+    }
+    
+    await confirmGenerateReport(type);
+}
+
+async function confirmGenerateReport(type) {
+    const reportType = type || document.getElementById('reportType').value;
+    
+    try {
+        const response = await fetch('/api/generate_report', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                report_type: reportType
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('报告生成成功！文件名: ' + result.filename);
+            const modalElement = document.getElementById('generateModal');
+            if (modalElement) {
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+            }
+            loadReports();
+        } else {
+            alert('报告生成失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('报告生成失败: ' + error.message);
+    }
+}
+
+function getReportTypeName(type) {
+    const names = {
+        'daily': '日报',
+        'weekly': '周报',
+        'quarterly': '季报',
+        'yearly': '年报'
+    };
+    return names[type] || type;
+}
+
+async function deleteReport(filename) {
+    if (!confirm(`确定要删除报告 "${filename}" 吗？此操作不可恢复。`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/reports/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('报告删除成功！');
+            loadReports();
+        } else {
+            alert('报告删除失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('报告删除失败: ' + error.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadReports();
+    
+    // 每30秒刷新一次报告列表
+    setInterval(loadReports, 30000);
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - 商业情报分析系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    .stat-icon {
+        font-size: 36px;
+        margin-bottom: 10px;
+    }
+    .stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    .stat-label {
+        color: #6c757d;
+        font-size: 14px;
+    }
+    .chart-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        min-height: 400px;
+    }
+    .loading-spinner {
+        text-align: center;
+        padding: 40px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-speedometer2"></i> 仪表盘</h2>
+            <button class="btn btn-primary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise"></i> 刷新数据
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- KPI指标卡片 -->
+<div class="row" id="kpiCards">
+    <div class="col-md-3">
+        <div class="stat-card text-center">
+            <div class="stat-icon text-primary">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+            <div class="stat-label">市值增长率</div>
+            <div class="stat-value text-primary" id="marketCapGrowth">-</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card text-center">
+            <div class="stat-icon text-info">
+                <i class="bi bi-newspaper"></i>
+            </div>
+            <div class="stat-label">总发稿量</div>
+            <div class="stat-value text-info" id="totalArticles">-</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card text-center">
+            <div class="stat-icon text-success">
+                <i class="bi bi-chat-heart"></i>
+            </div>
+            <div class="stat-label">社交互动率</div>
+            <div class="stat-value text-success" id="engagementRate">-</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card text-center">
+            <div class="stat-icon text-warning">
+                <i class="bi bi-file-text"></i>
+            </div>
+            <div class="stat-label">研报覆盖度</div>
+            <div class="stat-value text-warning" id="researchCoverage">-</div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="chart-container">
+            <h5 class="mb-3">市值趋势</h5>
+            <canvas id="marketCapChart"></canvas>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="chart-container">
+            <h5 class="mb-3">数据概览</h5>
+            <div id="dataOverview">
+                <div class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPI详细列表 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">KPI指标详情</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="kpiTable">
+                        <thead>
+                            <tr>
+                                <th>类别</th>
+                                <th>指标名称</th>
+                                <th>指标值</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="3" class="text-center">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let marketCapChart = null;
+
+async function loadKPISummary() {
+    try {
+        const response = await fetch('/api/kpi_summary');
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            // 更新KPI卡片
+            const kpis = data.data;
+            let marketCapGrowth = '-';
+            let totalArticles = '-';
+            let engagementRate = '-';
+            let researchCoverage = '-';
+            
+            kpis.forEach(kpi => {
+                if (kpi.kpi_name && kpi.kpi_name.includes('市值增长率')) {
+                    marketCapGrowth = formatKPIValue(kpi.kpi_value);
+                } else if (kpi.kpi_name && kpi.kpi_name.includes('总发稿量')) {
+                    totalArticles = formatKPIValue(kpi.kpi_value);
+                } else if (kpi.kpi_name && kpi.kpi_name.includes('社交互动率') || kpi.kpi_name && kpi.kpi_name.includes('互动率')) {
+                    engagementRate = formatKPIValue(kpi.kpi_value);
+                } else if (kpi.kpi_name && kpi.kpi_name.includes('研报覆盖度') || kpi.kpi_name && kpi.kpi_name.includes('覆盖度')) {
+                    researchCoverage = formatKPIValue(kpi.kpi_value);
+                }
+            });
+            
+            document.getElementById('marketCapGrowth').textContent = marketCapGrowth;
+            document.getElementById('totalArticles').textContent = totalArticles;
+            document.getElementById('engagementRate').textContent = engagementRate;
+            document.getElementById('researchCoverage').textContent = researchCoverage;
+            
+            // 更新KPI表格
+            const tbody = document.querySelector('#kpiTable tbody');
+            tbody.innerHTML = '';
+            
+            if (kpis.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">暂无数据</td></tr>';
+                return;
+            }
+            
+            kpis.forEach(kpi => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${kpi.category || '-'}</td>
+                    <td>${kpi.kpi_name || '-'}</td>
+                    <td>${formatKPIValue(kpi.kpi_value)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            console.error('加载KPI摘要失败:', data.error);
+            showError('加载KPI数据失败: ' + (data.error || '未知错误'));
+        }
+    } catch (error) {
+        console.error('加载KPI摘要失败:', error);
+        showError('加载KPI数据失败: ' + error.message);
+    }
+}
+
+async function loadMarketCapTrend() {
+    try {
+        const response = await fetch('/api/market_cap_trend');
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            const trendData = data.data;
+            const ctx = document.getElementById('marketCapChart').getContext('2d');
+            
+            if (marketCapChart) {
+                marketCapChart.destroy();
+            }
+            
+            marketCapChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trendData.dates || [],
+                    datasets: [{
+                        label: trendData.label || '市值',
+                        data: trendData.values || [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        } else {
+            console.error('加载市值趋势失败:', data.error);
+            document.getElementById('marketCapChart').parentElement.innerHTML = 
+                '<div class="alert alert-warning">无法加载市值趋势数据: ' + (data.error || '未知错误') + '</div>';
+        }
+    } catch (error) {
+        console.error('加载市值趋势失败:', error);
+        document.getElementById('marketCapChart').parentElement.innerHTML = 
+            '<div class="alert alert-danger">加载市值趋势失败: ' + error.message + '</div>';
+    }
+}
+
+async function loadDataOverview() {
+    try {
+        const response = await fetch('/api/data_overview');
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            const overview = document.getElementById('dataOverview');
+            let html = '<ul class="list-group list-group-flush">';
+            
+            data.data.forEach(item => {
+                html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>${item.table_name}</span>
+                        <span class="badge bg-primary rounded-pill">${item.rows} 行</span>
+                    </li>
+                `;
+            });
+            
+            html += '</ul>';
+            overview.innerHTML = html;
+        } else {
+            document.getElementById('dataOverview').innerHTML = 
+                '<div class="alert alert-warning">无法加载数据概览</div>';
+        }
+    } catch (error) {
+        console.error('加载数据概览失败:', error);
+        document.getElementById('dataOverview').innerHTML = 
+            '<div class="alert alert-danger">加载数据概览失败: ' + error.message + '</div>';
+    }
+}
+
+function formatKPIValue(value) {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+    
+    if (typeof value === 'number') {
+        if (value >= 1000000000) {
+            return (value / 1000000000).toFixed(2) + 'B';
+        } else if (value >= 1000000) {
+            return (value / 1000000).toFixed(2) + 'M';
+        } else if (value >= 1000) {
+            return (value / 1000).toFixed(2) + 'K';
+        } else if (value < 1 && value > 0) {
+            return (value * 100).toFixed(2) + '%';
+        }
+        return value.toFixed(2);
+    }
+    
+    return String(value);
+}
+
+async function refreshData() {
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>刷新中...';
+    
+    try {
+        const response = await fetch('/api/refresh_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('数据刷新成功！');
+            loadKPISummary();
+            loadMarketCapTrend();
+            loadDataOverview();
+        } else {
+            alert('数据刷新失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('数据刷新失败: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadKPISummary();
+    loadMarketCapTrend();
+    loadDataOverview();
+    
+    // 每5分钟自动刷新一次数据
+    setInterval(() => {
+        loadKPISummary();
+        loadMarketCapTrend();
+        loadDataOverview();
+    }, 300000);
+});
+</script>
+{% endblock %}

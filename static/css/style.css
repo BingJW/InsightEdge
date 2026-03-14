@@ -1,0 +1,41 @@
+body {
+    background-color: #f5f7fa;
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.stat-card {
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.chart-container {
+    min-height: 300px;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.btn {
+    border-radius: 5px;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.modal-content {
+    border-radius: 10px;
+}
+
+
+

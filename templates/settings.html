@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block title %}设置 - 商业情报分析系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-gear"></i> 系统设置</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">用户信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">用户名</label>
+                    <input type="text" class="form-control" value="{{ current_user.username }}" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">角色</label>
+                    <input type="text" class="form-control" value="{{ current_user.role }}" readonly>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">系统信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">数据最后更新</label>
+                    <input type="text" class="form-control" id="lastUpdate" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">系统版本</label>
+                    <input type="text" class="form-control" value="v1.0.0" readonly>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user.is_super_admin() %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-people"></i> 用户管理</h5>
+                <button class="btn btn-sm btn-primary" onclick="showAddUserModal()">
+                    <i class="bi bi-plus-circle"></i> 添加用户
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>用户名</th>
+                                <th>角色</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="text-center">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">数据爬取配置（预留接口）</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 数据爬取功能正在开发中，当前使用本地Excel数据文件。
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">爬取频率</label>
+                            <select class="form-select" disabled>
+                                <option>每日</option>
+                                <option>每周</option>
+                                <option>每月</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">数据源</label>
+                            <select class="form-select" disabled>
+                                <option>政策数据</option>
+                                <option>专利数据</option>
+                                <option>产业动态</option>
+                                <option>品牌声量</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" disabled>
+                    <i class="bi bi-save"></i> 保存配置
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user.is_super_admin() %}
+<!-- 添加/编辑用户模态框 -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">添加用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <input type="hidden" id="userId" name="id">
+                    <div class="mb-3">
+                        <label class="form-label">用户名</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">密码</label>
+                        <input type="password" class="form-control" id="password" name="password">
+                        <small class="form-text text-muted">编辑用户时，留空则不修改密码</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <select class="form-select" id="userRole" name="role" required>
+                            <option value="user">普通用户</option>
+                            <option value="admin">管理员</option>
+                            <option value="super_admin">超级管理员</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveUser()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentEditingUserId = null;
+
+async function loadSettings() {
+    try {
+        const response = await fetch('/api/kpi_summary');
+        const data = await response.json();
+        
+        if (data.success && data.last_update) {
+            const lastUpdate = new Date(data.last_update).toLocaleString('zh-CN');
+            document.getElementById('lastUpdate').value = lastUpdate;
+        }
+    } catch (error) {
+        console.error('加载设置信息失败:', error);
+    }
+    
+    {% if current_user.is_super_admin() %}
+    await loadUsers();
+    {% endif %}
+}
+
+{% if current_user.is_super_admin() %}
+async function loadUsers() {
+    try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        
+        if (data.success) {
+            const tbody = document.querySelector('#usersTable tbody');
+            tbody.innerHTML = '';
+            
+            if (data.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">暂无用户</td></tr>';
+                return;
+            }
+            
+            data.data.forEach(user => {
+                const row = document.createElement('tr');
+                const roleNames = {
+                    'user': '普通用户',
+                    'admin': '管理员',
+                    'super_admin': '超级管理员'
+                };
+                const roleBadge = user.role === 'super_admin' ? 
+                    '<span class="badge bg-danger">超级管理员</span>' :
+                    user.role === 'admin' ?
+                    '<span class="badge bg-warning">管理员</span>' :
+                    '<span class="badge bg-secondary">普通用户</span>';
+                
+                row.innerHTML = `
+                    <td>${user.id}</td>
+                    <td>${user.username}</td>
+                    <td>${roleBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editUser('${user.id}')">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteUser('${user.id}', '${user.username}')">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (error) {
+        console.error('加载用户列表失败:', error);
+        const tbody = document.querySelector('#usersTable tbody');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
+    }
+}
+
+function showAddUserModal() {
+    currentEditingUserId = null;
+    document.getElementById('userModalTitle').textContent = '添加用户';
+    document.getElementById('userForm').reset();
+    document.getElementById('userId').value = '';
+    document.getElementById('password').required = true;
+    const modal = new bootstrap.Modal(document.getElementById('userModal'));
+    modal.show();
+}
+
+async function editUser(userId) {
+    try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        
+        if (data.success) {
+            const user = data.data.find(u => u.id === userId);
+            if (user) {
+                currentEditingUserId = userId;
+                document.getElementById('userModalTitle').textContent = '编辑用户';
+                document.getElementById('userId').value = user.id;
+                document.getElementById('username').value = user.username;
+                document.getElementById('username').readOnly = true;
+                document.getElementById('userRole').value = user.role;
+                document.getElementById('password').required = false;
+                document.getElementById('password').value = '';
+                const modal = new bootstrap.Modal(document.getElementById('userModal'));
+                modal.show();
+            }
+        }
+    } catch (error) {
+        alert('加载用户信息失败: ' + error.message);
+    }
+}
+
+async function saveUser() {
+    const userId = document.getElementById('userId').value;
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const role = document.getElementById('userRole').value;
+    
+    if (!username) {
+        alert('请输入用户名');
+        return;
+    }
+    
+    if (!userId && !password) {
+        alert('请输入密码');
+        return;
+    }
+    
+    try {
+        let response;
+        if (userId) {
+            // 更新用户
+            const updateData = { role: role };
+            if (password) {
+                updateData.password = password;
+            }
+            response = await fetch(`/api/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updateData)
+            });
+        } else {
+            // 创建用户
+            response = await fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    role: role
+                })
+            });
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
+            modal.hide();
+            loadUsers();
+        } else {
+            alert('操作失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('操作失败: ' + error.message);
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`确定要删除用户 "${username}" 吗？此操作不可恢复。`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            loadUsers();
+        } else {
+            alert('删除失败: ' + result.error);
+        }
+    } catch (error) {
+        alert('删除失败: ' + error.message);
+    }
+}
+{% endif %}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+});
+</script>
+{% endblock %}
+
