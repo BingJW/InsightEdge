@@ -124,8 +124,8 @@ const tableNames = {
 
 async function loadDataOverview() {
     try {
-        const response = await fetch('/api/data_overview');
-        const data = await response.json();
+        const data = await apiRequest('/api/data_overview');
+        if (!data) return;
         
         if (data.success && data.data) {
             const container = document.getElementById('dataTablesOverview');
@@ -183,8 +183,8 @@ async function loadDataOverview() {
 
 async function loadTableSheets(tableName) {
     try {
-        const response = await fetch(`/api/data_table/${tableName}/sheets`);
-        const data = await response.json();
+        const data = await apiRequest(`/api/data_table/${tableName}/sheets`);
+        if (!data) return;
         
         if (data.success && data.data.sheets && data.data.sheets.length > 0) {
             const sheetSelect = document.getElementById('sheetSelect');
@@ -247,8 +247,8 @@ async function fetchTableData(tableName, sheetName, page) {
             url += `&search=${encodeURIComponent(search)}`;
         }
         
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await apiRequest(url);
+        if (!data) return;
         
         if (data.success && data.data) {
             const tableData = data.data;
@@ -346,14 +346,10 @@ async function refreshData() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>刷新中...';
     
     try {
-        const response = await fetch('/api/refresh_data', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+        const result = await apiRequest('/api/refresh_data', {
+            method: 'POST'
         });
-        
-        const result = await response.json();
+        if (!result) return;
         
         if (result.success) {
             alert('数据刷新成功！');

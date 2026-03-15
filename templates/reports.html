@@ -155,8 +155,8 @@
 <script>
 async function loadReports() {
     try {
-        const response = await fetch('/api/reports');
-        const data = await response.json();
+        const data = await apiRequest('/api/reports');
+        if (!data) return;
         
         if (data.success) {
             const tbody = document.querySelector('#reportsTable tbody');
@@ -214,17 +214,13 @@ async function confirmGenerateReport(type) {
     const reportType = type || document.getElementById('reportType').value;
     
     try {
-        const response = await fetch('/api/generate_report', {
+        const result = await apiRequest('/api/generate_report', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({
                 report_type: reportType
             })
         });
-        
-        const result = await response.json();
+        if (!result) return;
         
         if (result.success) {
             alert('报告生成成功！文件名: ' + result.filename);
@@ -260,14 +256,10 @@ async function deleteReport(filename) {
     }
     
     try {
-        const response = await fetch(`/api/reports/${encodeURIComponent(filename)}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+        const result = await apiRequest(`/api/reports/${encodeURIComponent(filename)}`, {
+            method: 'DELETE'
         });
-        
-        const result = await response.json();
+        if (!result) return;
         
         if (result.success) {
             alert('报告删除成功！');

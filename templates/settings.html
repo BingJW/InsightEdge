@@ -169,8 +169,8 @@ let currentEditingUserId = null;
 
 async function loadSettings() {
     try {
-        const response = await fetch('/api/kpi_summary');
-        const data = await response.json();
+        const data = await apiRequest('/api/kpi_summary');
+        if (!data) return;
         
         if (data.success && data.last_update) {
             const lastUpdate = new Date(data.last_update).toLocaleString('zh-CN');
@@ -188,8 +188,8 @@ async function loadSettings() {
 {% if current_user.is_super_admin() %}
 async function loadUsers() {
     try {
-        const response = await fetch('/api/users');
-        const data = await response.json();
+        const data = await apiRequest('/api/users');
+        if (!data) return;
         
         if (data.success) {
             const tbody = document.querySelector('#usersTable tbody');
@@ -248,8 +248,8 @@ function showAddUserModal() {
 
 async function editUser(userId) {
     try {
-        const response = await fetch('/api/users');
-        const data = await response.json();
+        const data = await apiRequest('/api/users');
+        if (!data) return;
         
         if (data.success) {
             const user = data.data.find(u => u.id === userId);
@@ -288,27 +288,21 @@ async function saveUser() {
     }
     
     try {
-        let response;
+        let result;
         if (userId) {
             // 更新用户
             const updateData = { role: role };
             if (password) {
                 updateData.password = password;
             }
-            response = await fetch(`/api/users/${userId}`, {
+            result = await apiRequest(`/api/users/${userId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify(updateData)
             });
         } else {
             // 创建用户
-            response = await fetch('/api/users', {
+            result = await apiRequest('/api/users', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify({
                     username: username,
                     password: password,
@@ -316,8 +310,7 @@ async function saveUser() {
                 })
             });
         }
-        
-        const result = await response.json();
+        if (!result) return;
         
         if (result.success) {
             alert(result.message);
@@ -338,11 +331,10 @@ async function deleteUser(userId, username) {
     }
     
     try {
-        const response = await fetch(`/api/users/${userId}`, {
+        const result = await apiRequest(`/api/users/${userId}`, {
             method: 'DELETE'
         });
-        
-        const result = await response.json();
+        if (!result) return;
         
         if (result.success) {
             alert(result.message);

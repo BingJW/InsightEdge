@@ -23,7 +23,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['SECRET_KEY'] = 'insightedge-bi-secret-key-2024'
 app.config['UPLOAD_FOLDER'] = OUTPUT_DIR
 
@@ -31,6 +31,13 @@ app.config['UPLOAD_FOLDER'] = OUTPUT_DIR
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# 自定义未授权处理
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': '需要登录'}), 401
+    return redirect(url_for('login'))
 
 # 简单的用户模型（实际项目中应该使用数据库）
 class User(UserMixin):
@@ -844,6 +851,19 @@ def api_delete_user(user_id):
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# 全局错误处理
+@app.errorhandler(404)
+def not_found(error):
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'API端点不存在'}), 404
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': '服务器内部错误'}), 500
+    return render_template('500.html'), 500
 
 if __name__ == '__main__':
     # 确保输出目录存在
