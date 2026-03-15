@@ -7,7 +7,7 @@ import numpy as np
 import logging
 from datetime import datetime
 import os
-from config import CLEANED_DATA_DIR
+from config import CLEANED_DATA_DIR, EXCEL_FILES
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -260,7 +260,12 @@ class DataCleaner:
         # 首先保存有多个工作表的数据文件
         for file_key, sheets_dict in self.cleaned_sheets.items():
             if len(sheets_dict) > 0:
-                file_path = os.path.join(CLEANED_DATA_DIR, f"{file_key}_cleaned.xlsx")
+                original_path = EXCEL_FILES.get(file_key)
+                if original_path:
+                    original_name = os.path.splitext(os.path.basename(original_path))[0]
+                else:
+                    original_name = file_key  # 兜底
+                file_path = os.path.join(CLEANED_DATA_DIR, f"{original_name}_cleaned.xlsx")
                 
                 try:
                     with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
@@ -295,7 +300,13 @@ class DataCleaner:
         # 保存只有主工作表的数据文件（如果还没有保存）
         for key, df in self.cleaned_data.items():
             if key not in saved_files and df is not None and not df.empty:
-                file_path = os.path.join(CLEANED_DATA_DIR, f"{key}_cleaned.xlsx")
+                 original_path = EXCEL_FILES.get(key)
+            if original_path:
+                original_name = os.path.splitext(os.path.basename(original_path))[0]
+            else:
+                original_name = key
+            file_path = os.path.join(CLEANED_DATA_DIR, f"{original_name}_cleaned.xlsx")
+
                 try:
                     df.to_excel(file_path, index=False)
                     logger.info(f"已保存清洗后的数据（主工作表）: {file_path}")
